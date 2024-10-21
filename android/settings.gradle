@@ -1,6 +1,47 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
-plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+pluginManagement {
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+}
+
+plugins {
+    id("com.facebook.react.settings")
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand()
+}
+
 rootProject.name = 'MusicApp'
+
+// Include react-native-async-storage
+include ':react-native-async-storage_async-storage'
+project(':react-native-async-storage_async-storage').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-async-storage/async-storage/android')
+
+
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+
+
+// pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+// plugins { id("com.facebook.react.settings") }
+// extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+// rootProject.name = 'MusicApp'
+// include ':app'
+// includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// pluginManagement {
+//     includeBuild("../node_modules/@react-native/gradle-plugin")
+// }
+
+// plugins {
+//     id("com.facebook.react.settings")
+// }
+
+// extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+//     ex.autolinkLibrariesFromCommand()
+// }
+
+// rootProject.name = 'MusicApp'
+
+// include ':app'
+// include ':react-native-track-player'
+// project(':react-native-track-player').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-track-player/android')
