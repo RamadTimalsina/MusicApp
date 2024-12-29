@@ -1,120 +1,136 @@
 import React, {useEffect, useState} from 'react';
-import {View, Text, StyleSheet, Image, TouchableOpacity} from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ToastAndroid,
+} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AntDesign from 'react-native-vector-icons/AntDesign';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Slider from '@react-native-community/slider';
 import TrackPlayer, {
   State,
-  usePlaybackState,
   useProgress,
   Event,
   useTrackPlayerEvents,
 } from 'react-native-track-player';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import axios from 'axios';
 
-const PlaySongScreen = () => {
+const PlaySongScreen = ({route, navigation}) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentSong, setCurrentSong] = useState(null); // Initialize as null
-  const route = useRoute();
-  const navigation = useNavigation();
-  const playbackState = usePlaybackState();
+  const [isLoop, setIsLoop] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [currentSong, setCurrentSong] = useState(null);
   const progress = useProgress();
 
-  const {
-    songId,
-    songTitle,
-    songSubtitle,
-    songArtist,
-    songThumbnail,
-    songUrl,
-    playlist,
-    songIndex,
-  } = route.params;
+  const {playlist, songIndex} = route.params || {};
 
-  // Initialize the TrackPlayer and add the playlist
   const trackPlayerInit = async () => {
-    await TrackPlayer.reset(); // Reset player to start fresh
+    try {
+      if (!playlist || playlist.length === 0)
+        throw new Error('Playlist is empty or missing.');
 
-    // Add the playlist to the TrackPlayer queue
-    const trackList = playlist.map(song => ({
-      id: song._id,
-      url: song.url,
-      title: song.title,
+      await TrackPlayer.reset();
 
-      artist: song.artist.name || 'Unknown Artist',
-      artwork: song.thumbnail?.url || 'https://via.placeholder.com/80',
-    }));
+      const tracks = playlist.map(song => ({
+        id: song._id, // Keep the original _id as id
+        url: song.url,
+        title: song.title || 'Unknown Title',
+        artist: song.artist?.name || 'Unknown Artist',
+        subtitle: song.subtitle || 'Unknown Subtitle',
+        artwork: song.thumbnail?.url || 'https://via.placeholder.com/300',
+        originalId: song._id, // Store the original _id separately if needed
+      }));
 
-    await TrackPlayer.add(trackList); // Add all songs to the queue
-    await TrackPlayer.skip(songIndex); // Skip to the songIndex to start playing the selected song
-    await TrackPlayer.play(); // Start playback
-    setIsPlaying(true);
+      await TrackPlayer.add(tracks);
+      await TrackPlayer.skip(songIndex);
+      await TrackPlayer.play();
 
-    // Set the current song details
-    setCurrentSong({
-      id: songId,
-      title: songTitle,
-      subtitle: songSubtitle,
-      artist: songArtist.name,
-      thumbnail: songThumbnail.url,
-      url: songUrl,
-    });
+      setIsPlaying(true);
+      setCurrentSong(tracks[songIndex]);
+
+      // Log play history with the original _id
+      if (playlist[songIndex]._id) {
+        logPlayHistory(playlist[songIndex]._id);
+      }
+    } catch (error) {
+      console.error('Error initializing TrackPlayer:', error.message);
+      ToastAndroid.show(`Error: ${error.message}`, ToastAndroid.LONG);
+    }
   };
 
   useEffect(() => {
-    // Initialize player and set current song on component mount
     trackPlayerInit();
 
-    // Cleanup TrackPlayer on unmount
     return () => {
       TrackPlayer.stop();
-      setCurrentSong(null); // Reset current song
     };
-  }, []); // Run only once when the component mounts
+  }, []);
 
-  // Effect to update song details when route params change
-  useEffect(() => {
-    if (currentSong?.id !== songId) {
-      trackPlayerInit(); // Re-initialize the player with new song
-
-      // Update currentSong with new details
-      setCurrentSong({
-        id: songId,
-        title: songTitle,
-        subtitle: songSubtitle,
-        artist: songArtist.name,
-        thumbnail: songThumbnail.url,
-        url: songUrl,
-      });
-    }
-  }, [songId, songTitle, songSubtitle, songArtist, songThumbnail, songUrl]); // Dependencies array
-
-  // Listen to TrackPlayer events
   useTrackPlayerEvents([Event.PlaybackTrackChanged], async event => {
     if (event.type === Event.PlaybackTrackChanged) {
       const currentTrackId = await TrackPlayer.getCurrentTrack();
-      if (currentTrackId) {
+      if (currentTrackId !== null) {
         const trackDetails = await TrackPlayer.getTrack(currentTrackId);
         if (trackDetails) {
           setCurrentSong({
             id: trackDetails.id,
             title: trackDetails.title,
-            subtitle: trackDetails.subtitle,
             artist: trackDetails.artist,
-            thumbnail: trackDetails.artwork,
-            url: trackDetails.url,
+            subtitle: trackDetails.subtitle,
+            artwork: trackDetails.artwork,
           });
+
+          // Find the original song in the playlist to get its _id
+          const originalSong = playlist.find(
+            song => song._id === trackDetails.id,
+          );
+          if (originalSong && originalSong._id) {
+            logPlayHistory(originalSong._id);
+          }
         }
       }
     }
   });
 
-  // Toggle play/pause functionality
+  const logPlayHistory = async songId => {
+    if (!songId) {
+      console.error('No song ID provided to logPlayHistory');
+      return;
+    }
+
+    console.log('1. Received songId:', songId);
+    const requestBody = {song: songId};
+    console.log('2. Sending request body:', requestBody);
+
+    try {
+      const response = await axios.post(
+        'http://10.0.2.2:4000/api/playHistory/log',
+        requestBody,
+      );
+      console.log('3. Response from server:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('4. Error details:', {
+        message: error.message,
+        requestData: requestBody,
+        responseData: error.response?.data,
+        status: error.response?.status,
+      });
+      throw error;
+    }
+  };
+
+  // Rest of your component code remains the same...
+
   const togglePlayPause = async () => {
-    const playerState = await TrackPlayer.getState();
-    if (playerState === State.Playing) {
+    if (isPlaying) {
       await TrackPlayer.pause();
       setIsPlaying(false);
     } else {
@@ -123,43 +139,42 @@ const PlaySongScreen = () => {
     }
   };
 
-  // Play the next song in the playlist
   const playNextSong = () => {
     const nextIndex = songIndex + 1;
     if (nextIndex < playlist.length) {
-      const nextSong = playlist[nextIndex];
       navigation.replace('PlaySongScreen', {
-        songId: nextSong._id,
-        songTitle: nextSong.title,
-        songSubtitle: nextSong.subtitle,
-        songArtist: nextSong.artist,
-        songThumbnail: nextSong.thumbnail,
-        songUrl: nextSong.url,
-        songIndex: nextIndex, // Increment the song index
-        playlist: playlist, // Pass the updated playlist
+        playlist,
+        songIndex: nextIndex,
       });
     }
   };
 
-  // Play the previous song in the playlist
   const playPreviousSong = () => {
     const prevIndex = songIndex - 1;
     if (prevIndex >= 0) {
-      const prevSong = playlist[prevIndex];
       navigation.replace('PlaySongScreen', {
-        songId: prevSong._id,
-        songTitle: prevSong.title,
-        songSubtitle: prevSong.subtitle,
-        songArtist: prevSong.artist,
-        songThumbnail: prevSong.thumbnail,
-        songUrl: prevSong.url,
-        songIndex: prevIndex, // Decrement the song index
-        playlist: playlist, // Pass the updated playlist
+        playlist,
+        songIndex: prevIndex,
       });
     }
   };
 
-  // Format time in mm:ss
+  const toggleLoop = () => {
+    setIsLoop(!isLoop);
+    ToastAndroid.show(
+      isLoop ? 'Loop disabled' : 'Loop enabled',
+      ToastAndroid.SHORT,
+    );
+  };
+
+  const toggleLike = () => {
+    setIsLiked(!isLiked);
+    ToastAndroid.show(
+      isLiked ? 'Song unliked' : 'Song liked',
+      ToastAndroid.SHORT,
+    );
+  };
+
   const formatTime = seconds => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
@@ -168,47 +183,38 @@ const PlaySongScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        style={styles.gradient}
-        colors={['#8A2BE2', '#FF7F7F']}
-        start={{x: 1, y: 0}}
-        end={{x: 0, y: 0}}>
+      <LinearGradient style={styles.gradient} colors={['#00C9FF', '#e0ffff']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <AntDesign name="left" size={30} color="#000000" />
+            <AntDesign name="left" size={30} color="#000" />
           </TouchableOpacity>
           <Text style={styles.playingNow}>Playing Now</Text>
           <TouchableOpacity>
-            <Entypo name="dots-three-horizontal" size={30} color="#000000" />
+            <Entypo name="dots-three-horizontal" size={30} color="#000" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.imageContainer}>
           <Image
             source={{
-              uri: currentSong?.thumbnail || 'https://via.placeholder.com/80',
+              uri: currentSong?.artwork || 'https://via.placeholder.com/300',
             }}
             style={styles.imagebox}
-            onError={error => console.log('Error loading image:', error)}
           />
         </View>
-        {/* <View style={styles.songDetails}>
-          <Text style={styles.title}>{currentSong?.title || 'Loading...'}</Text>
+
+        <View style={styles.songDetails}>
+          <Text style={styles.title}>
+            {currentSong?.title || 'Unknown Title'}
+          </Text>
           <Text style={styles.artist}>
             {currentSong?.artist || 'Unknown Artist'}
           </Text>
-        </View> */}
-
-        <View style={styles.songDetails}>
-          <Text style={styles.title}>{songTitle}</Text>
-          <View style={styles.artistRow}>
-            <Text style={styles.artist}>{songArtist.name}</Text>
-            <Text style={styles.dot}>•</Text>
-            <Text style={styles.artist}>{songSubtitle}</Text>
-          </View>
+          <Text style={styles.subtitle}>
+            {currentSong?.subtitle || 'Unknown Subtitle'}
+          </Text>
         </View>
 
-        {/* Slider to show song progress */}
         <Slider
           style={styles.slider}
           value={progress.position}
@@ -217,22 +223,21 @@ const PlaySongScreen = () => {
           onSlidingComplete={value => TrackPlayer.seekTo(value)}
         />
 
-        {/* Time display */}
         <View style={styles.timeContainer}>
           <Text style={styles.timeText}>{formatTime(progress.position)}</Text>
           <Text style={styles.timeText}>{formatTime(progress.duration)}</Text>
         </View>
 
         <View style={styles.controls}>
-          {/* <TouchableOpacity onPress={handleLoop}>
-        <AntDesign
-              name={isPlaying ? 'pausecircle' : 'playcircleo'}
-              size={60}
+          <TouchableOpacity onPress={toggleLoop}>
+            <MaterialIcons
+              name={isLoop ? 'repeat-one' : 'repeat'}
+              size={30}
               color="#000"
             />
-        </TouchableOpacity> */}
+          </TouchableOpacity>
           <TouchableOpacity onPress={playPreviousSong}>
-            <AntDesign name="banckward" size={45} color="#000" />
+            <AntDesign name="banckward" size={35} color="#000" />
           </TouchableOpacity>
           <TouchableOpacity onPress={togglePlayPause}>
             <AntDesign
@@ -242,7 +247,14 @@ const PlaySongScreen = () => {
             />
           </TouchableOpacity>
           <TouchableOpacity onPress={playNextSong}>
-            <AntDesign name="forward" size={45} color="#000" />
+            <AntDesign name="forward" size={35} color="#000" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleLike}>
+            <MaterialCommunityIcons
+              name={isLiked ? 'heart' : 'heart-outline'}
+              size={30}
+              color="#000"
+            />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -261,26 +273,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 10,
+    padding: 20,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    marginTop: 5,
+    fontFamily: 'RobotoBlack',
   },
   playingNow: {
-    fontWeight: '600',
     fontSize: 20,
-    color: '#000000',
+    fontWeight: 'bold',
+    color: '#000',
   },
   imageContainer: {
-    marginTop: 40,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 5},
-    shadowOpacity: 0.34,
-    shadowRadius: 6.27,
-    elevation: 10, // Android shadow
+    marginTop: 40,
   },
   imagebox: {
-    height: 300,
     width: 300,
+    height: 300,
     borderRadius: 10,
   },
   songDetails: {
@@ -289,29 +301,17 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: 'bold',
     color: '#2C3E50',
+    fontFamily: 'RobotoBold',
   },
   artist: {
-    fontSize: 17,
+    fontSize: 18,
     color: '#2C3E50',
-    fontWeight: '700',
+    fontFamily: 'RobotoMedium',
   },
-  dot: {
-    fontSize: 25,
-    color: '#000000',
-    fontWeight: '700',
-  },
-  artistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 5,
-    gap: 10,
-  },
-
   slider: {
     width: '90%',
-    height: 40,
     alignSelf: 'center',
     marginTop: 20,
   },
@@ -320,7 +320,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '90%',
     alignSelf: 'center',
-    marginTop: -10,
   },
   timeText: {
     fontSize: 14,

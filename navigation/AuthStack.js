@@ -20,7 +20,7 @@ const AuthStack = () => {
       />
 
       <Stack.Screen
-        name="SigupScreen"
+        name="SignupScreen"
         component={SignupScreen}
         options={{headerShown: false}}
       />

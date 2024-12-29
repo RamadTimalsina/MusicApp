@@ -10,7 +10,7 @@ const LoginOrSignupScreen = () => {
   };
   //navigate to the signup screen
   const navigateToSignup = () => {
-    navigation.navigate('SigupScreen');
+    navigation.navigate('SignupScreen');
   };
 
   return (

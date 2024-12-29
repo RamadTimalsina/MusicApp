@@ -99,7 +99,7 @@ const ProfileScreen = () => {
             <Text style={styles.SubscriptionName}>Family Plan</Text>
           </View>
           <Text style={{left: 20, color: '#FF6347'}}>
-            $14.99/month for upto 6 famlily members
+            $14.99/month for upto 6 family members
           </Text>
         </View>
         <TouchableOpacity style={styles.signinbutton}>

@@ -15,6 +15,20 @@ const playlistSchema = new mongoose.Schema(
         ref: 'Song',
       },
     ],
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+    },
+    thumbnail: {
+      public_id: {
+        type: String,
+        required: true,
+      },
+      url: {
+        type: String,
+        required: true,
+      },
+    },
   },
   {timestamps: true},
 );

@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LoginScreen = () => {
   const navigation = useNavigation();
 
-  const signin = () => {
+  const signup = () => {
     navigation.navigate('SignupScreen');
   };
 
@@ -145,7 +145,7 @@ const LoginScreen = () => {
         <View style={styles.googlesignin}>
           <Text style={styles.label2}>Already have an account?</Text>
           <View>
-            <TouchableOpacity onPress={signin}>
+            <TouchableOpacity onPress={signup}>
               <Text style={styles.label2}>Sign in</Text>
             </TouchableOpacity>
           </View>

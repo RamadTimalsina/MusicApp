@@ -2,12 +2,12 @@ import React, {useEffect, useState} from 'react';
 import {
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
   Image,
   Pressable,
+  StyleSheet,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -16,18 +16,27 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import axios from 'axios';
 
 const PlaylistDetails = () => {
-  const [play, setPlay] = useState({}); // To track play/pause state for each song
-  const navigation = useNavigation();
-  const route = useRoute();
-  const {playlistId} = route.params;
+  const [play, setPlay] = useState({});
   const [songs, setSongs] = useState([]);
   const [playlistName, setPlaylistName] = useState('');
-  const [description, setDescription] = useState('');
+  const [errorMessage, setErrorMessage] = useState(''); // New error state
+  const navigation = useNavigation();
+  const route = useRoute();
+
+  // Get playlist details from route.params
+  const {
+    playlistId,
+    genreId,
+    artistId,
+    genreName,
+    artistName,
+    playlistName: passedPlaylistName,
+  } = route.params;
 
   const handlePlayButtonPress = songId => {
     setPlay(prevPlay => ({
       ...prevPlay,
-      [songId]: !prevPlay[songId], // Toggle play/pause for the specific song
+      [songId]: !prevPlay[songId],
     }));
   };
 
@@ -40,39 +49,65 @@ const PlaylistDetails = () => {
         songSubtitle: song.subtitle,
         songThumbnail: song.thumbnail,
         songUrl: song.url,
-        songIndex: index, // Send the song index
-        playlist: songs, // Send the whole playlist
+        songIndex: index,
+        playlist: songs,
       });
     } else {
       console.error('Invalid song data:', song);
     }
   };
+
   useEffect(() => {
     const fetchSongs = async () => {
+      let url = '';
+
+      if (playlistId) {
+        //   url = `http://10.0.2.2:4000/api/playlists/${playlistId}/songs`; // Fetch songs for the playlist
+        url = `http://10.0.2.2:4000/api/songs/playlist/${playlistId}`;
+      } else if (genreId) {
+        url = `http://10.0.2.2:4000/api/genres/${genreId}/songs`; // Fetch songs for the genre
+      } else if (artistId) {
+        url = `http://10.0.2.2:4000/api/artists/${artistId}/songs`; // Fetch songs for the artist
+      }
+
       try {
-        const response = await axios.get(
-          `http://10.0.2.2:4000/api/playlists/${playlistId}/songs`,
-        );
-        setPlaylistName(response.data.name);
-        setSongs(response.data.songs);
-        setDescription(response.data.description);
+        const response = await axios.get(url);
+
+        if (playlistId) {
+          setPlaylistName(passedPlaylistName || ''); // Name of the playlist
+          setSongs(response.data || []); // Songs in the playlist
+          //setDescription(response.data.description || ''); // Playlist description
+        } else if (artistId) {
+          // If artistId is present, use artist name from params if available
+          setPlaylistName(artistName || 'Unknown Artist'); // Use artistName passed from LibraryScreen
+          setSongs(response.data || []); // Set songs for the artist
+        } else if (genreId) {
+          // If genreId is present, use genre name from params if available
+          setPlaylistName(genreName || 'Unknown Genre'); // Use genreName passed from LibraryScreen
+          setSongs(response.data || []); // Set songs for the genre
+        }
       } catch (error) {
-        console.error('Failed to fetch songs', error);
+        setErrorMessage('No songs found in this playlist');
       }
     };
 
-    if (playlistId) {
-      fetchSongs();
-    }
-  }, [playlistId]);
+    fetchSongs();
+  }, [
+    playlistId,
+    genreId,
+    artistId,
+    genreName,
+    artistName,
+    passedPlaylistName,
+  ]);
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
         style={styles.header}
-        colors={['#8A2BE2', '#FF7F7F']}
+        colors={['#c455b0', '#FF7F7F']}
         start={{x: 1, y: 0}}
-        end={{x: 0, y: 0}}>
+        end={{x: 1, y: 1}}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -83,14 +118,15 @@ const PlaylistDetails = () => {
 
       <LinearGradient
         style={styles.footer}
-        colors={['#00C9FF', '#92FE9D']}
+        colors={['#00C9FF', '#e0ffff']}
         start={{x: 0, y: 0}}
         end={{x: 1, y: 1}}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.songContainer}>
-          {/* Display songs dynamically */}
-          {songs.length > 0 ? (
+          {errorMessage ? (
+            <Text style={styles.noSongsText}>{errorMessage}</Text>
+          ) : songs.length > 0 ? (
             songs.map((song, index) => (
               <LinearGradient
                 key={song._id}
@@ -99,7 +135,7 @@ const PlaylistDetails = () => {
                 end={{x: 1, y: 1}}
                 style={styles.songItem}>
                 <Pressable
-                  onPress={() => handleEachSong(song, index)} // Pass the index
+                  onPress={() => handleEachSong(song, index)}
                   style={styles.songPressable}>
                   <Image
                     style={styles.songThumbnail}
@@ -112,7 +148,11 @@ const PlaylistDetails = () => {
                   />
                   <View style={styles.songDetails}>
                     <Text style={styles.songName}>{song.title}</Text>
-                    <Text style={styles.songArtist}>{song.artist.name}</Text>
+                    <Text style={styles.songArtist}>
+                      {typeof song.artist === 'string'
+                        ? song.artist
+                        : song.artist?.name || 'Unknown Artist'}
+                    </Text>
                     <Text
                       style={styles.songSubtitle}
                       numberOfLines={1}
@@ -122,6 +162,7 @@ const PlaylistDetails = () => {
                   </View>
                   <TouchableOpacity
                     onPress={() => handlePlayButtonPress(song._id)}
+                    accessibilityLabel="Play/Pause"
                     style={styles.cardPlayButton}>
                     <FontAwesome
                       name={play[song._id] ? 'pause-circle-o' : 'play-circle-o'}
@@ -142,7 +183,6 @@ const PlaylistDetails = () => {
 };
 
 export default PlaylistDetails;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -161,6 +201,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     position: 'absolute',
     top: 70,
+    fontFamily: 'RobotoBlack',
   },
   footer: {
     position: 'absolute',
@@ -175,7 +216,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   songContainer: {
-    paddingBottom: 20,
+    paddingBottom: 180,
   },
   songItem: {
     marginBottom: 15,
@@ -198,14 +239,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   songName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#2C3E50',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
   },
   songArtist: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E90FF',
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
   },
   songSubtitle: {
     fontSize: 14,
