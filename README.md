@@ -1,3 +1,9 @@
+Uploading Android Emulator - Pixel_2_API_35_5554 2024-12-29 14-42-31 - Trim.mp4…
+
+
+
+
+
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
 # Getting Started
